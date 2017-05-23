@@ -8,7 +8,6 @@ from datasets.imdb import imdb
 import datasets.ds_utils as ds_utils
 from fast_rcnn.config import cfg
 import os.path as osp
-import sys
 import os
 import numpy as np
 import scipy.sparse
@@ -20,6 +19,7 @@ import uuid
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as COCOmask
+
 
 def _filter_crowd_proposals(roidb, crowd_thresh):
     """
@@ -42,15 +42,17 @@ def _filter_crowd_proposals(roidb, crowd_thresh):
         roidb[ix]['gt_overlaps'] = scipy.sparse.csr_matrix(overlaps)
     return roidb
 
+
 class coco(imdb):
     def __init__(self, image_set, year):
+
         imdb.__init__(self, 'coco_' + year + '_' + image_set)
         # COCO specific config options
-        self.config = {'top_k' : 2000,
-                       'use_salt' : True,
-                       'cleanup' : True,
-                       'crowd_thresh' : 0.7,
-                       'min_size' : 2}
+        self.config = {'top_k': 2000,
+                       'use_salt': True,
+                       'cleanup': True,
+                       'crowd_thresh': 0.7,
+                       'min_size': 2}
         # name, paths
         self._year = year
         self._image_set = image_set
@@ -58,6 +60,8 @@ class coco(imdb):
         # load COCO API, classes, class <-> id mappings
         self._COCO = COCO(self._get_ann_file())
         cats = self._COCO.loadCats(self._COCO.getCatIds())
+        # Note: this overrides setting of coco classes in base constructor.
+        # May be unnecessary.
         self._classes = tuple(['__background__'] + [c['name'] for c in cats])
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._class_to_coco_cat_id = dict(zip([c['name'] for c in cats],
@@ -71,12 +75,12 @@ class coco(imdb):
         # For example, minival2014 is a random 5000 image subset of val2014.
         # This mapping tells us where the view's images and proposals come from.
         self._view_map = {
-            'minival2014' : 'val2014',          # 5k val2014 subset
-            'valminusminival2014' : 'val2014',  # val2014 \setminus minival2014
+            'minival2014': 'val2014',          # 5k val2014 subset
+            'valminusminival2014': 'val2014',  # val2014 \setminus minival2014
         }
         coco_name = image_set + year  # e.g., "val2014"
         self._data_name = (self._view_map[coco_name]
-                           if self._view_map.has_key(coco_name)
+                           if coco_name in self._view_map
                            else coco_name)
         # Dataset splits that have ground-truth annotations (test splits
         # do not have gt annotations)
@@ -84,7 +88,7 @@ class coco(imdb):
 
     def _get_ann_file(self):
         prefix = 'instances' if self._image_set.find('test') == -1 \
-                             else 'image_info'
+                 else 'image_info'
         return osp.join(self._data_path, 'annotations',
                         prefix + '_' + self._image_set + self._year + '.json')
 
@@ -117,7 +121,7 @@ class coco(imdb):
         image_path = osp.join(self._data_path, 'images',
                               self._data_name, file_name)
         assert osp.exists(image_path), \
-                'Path does not exist: {}'.format(image_path)
+            'Path does not exist: {}'.format(image_path)
         return image_path
 
     def selective_search_roidb(self):
@@ -275,11 +279,11 @@ class coco(imdb):
 
         ds_utils.validate_boxes(boxes, width=width, height=height)
         overlaps = scipy.sparse.csr_matrix(overlaps)
-        return {'boxes' : boxes,
+        return {'boxes': boxes,
                 'gt_classes': gt_classes,
-                'gt_overlaps' : overlaps,
-                'flipped' : False,
-                'seg_areas' : seg_areas}
+                'gt_overlaps': overlaps,
+                'flipped': False,
+                'seg_areas': seg_areas}
 
     def _get_box_file(self, index):
         # first 14 chars / first 22 chars / all chars + .mat
@@ -291,6 +295,7 @@ class coco(imdb):
     def _print_detection_eval_metrics(self, coco_eval):
         IoU_lo_thresh = 0.5
         IoU_hi_thresh = 0.95
+
         def _get_thr_ind(coco_eval, thr):
             ind = np.where((coco_eval.params.iouThrs > thr - 1e-5) &
                            (coco_eval.params.iouThrs < thr + 1e-5))[0][0]
@@ -345,10 +350,10 @@ class coco(imdb):
             ws = dets[:, 2] - xs + 1
             hs = dets[:, 3] - ys + 1
             results.extend(
-              [{'image_id' : index,
-                'category_id' : cat_id,
-                'bbox' : [xs[k], ys[k], ws[k], hs[k]],
-                'score' : scores[k]} for k in xrange(dets.shape[0])])
+                [{'image_id': index,
+                  'category_id': cat_id,
+                  'bbox': [xs[k], ys[k], ws[k], hs[k]],
+                  'score': scores[k]} for k in xrange(dets.shape[0])])
         return results
 
     def _write_coco_results_file(self, all_boxes, res_file):
@@ -361,7 +366,7 @@ class coco(imdb):
             if cls == '__background__':
                 continue
             print 'Collecting {} results ({:d}/{:d})'.format(cls, cls_ind,
-                                                          self.num_classes - 1)
+                                                             self.num_classes - 1)
             coco_cat_id = self._class_to_coco_cat_id[cls]
             results.extend(self._coco_results_one_category(all_boxes[cls_ind],
                                                            coco_cat_id))

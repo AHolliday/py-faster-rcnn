@@ -7,35 +7,44 @@
 
 """Factory method for easily getting imdbs by name."""
 
-__sets = {}
-
 from datasets.pascal_voc import pascal_voc
 from datasets.coco import coco
-import numpy as np
+
+__sets = {}
+
 
 # Set up voc_<year>_<split> using selective search "fast" mode
 for year in ['2007', '2012']:
     for split in ['train', 'val', 'trainval', 'test']:
         name = 'voc_{}_{}'.format(year, split)
-        __sets[name] = (lambda split=split, year=year: pascal_voc(split, year))
+        __sets[name] = (lambda classes, devkit_path, split=split, year=year:
+                        pascal_voc(split, year, class_set=classes,
+                                   devkit_path=devkit_path))
 
 # Set up coco_2014_<split>
 for year in ['2014']:
     for split in ['train', 'val', 'minival', 'valminusminival']:
         name = 'coco_{}_{}'.format(year, split)
-        __sets[name] = (lambda split=split, year=year: coco(split, year))
+        # devkit_path and classes are just there to make all the __sets
+        # constructors take the same set of args.  They aren't used by the
+        # coco imdb class.
+        __sets[name] = (lambda classes, devkit_path, split=split, year=year:
+                        coco(split, year))
 
 # Set up coco_2015_<split>
 for year in ['2015']:
     for split in ['test', 'test-dev']:
         name = 'coco_{}_{}'.format(year, split)
-        __sets[name] = (lambda split=split, year=year: coco(split, year))
+        __sets[name] = (lambda classes, devkit_path, split=split, year=year:
+                        coco(split, year))
 
-def get_imdb(name):
+
+def get_imdb(name, class_set=None, devkit_path=None):
     """Get an imdb (image database) by name."""
-    if not __sets.has_key(name):
+    if name not in __sets:
         raise KeyError('Unknown dataset: {}'.format(name))
-    return __sets[name]()
+    return __sets[name](class_set, devkit_path)
+
 
 def list_imdbs():
     """List all registered imdbs."""

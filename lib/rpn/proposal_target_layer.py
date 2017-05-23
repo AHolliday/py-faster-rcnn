@@ -15,6 +15,7 @@ from utils.cython_bbox import bbox_overlaps
 
 DEBUG = False
 
+
 class ProposalTargetLayer(caffe.Layer):
     """
     Assign object detection proposals to ground-truth targets. Produces proposal
@@ -53,11 +54,11 @@ class ProposalTargetLayer(caffe.Layer):
 
         # Sanity check: single batch only
         assert np.all(all_rois[:, 0] == 0), \
-                'Only single item batches are supported'
+            'Only single item batches are supported'
 
         num_images = 1
         rois_per_image = cfg.TRAIN.BATCH_SIZE / num_images
-        fg_rois_per_image = np.round(cfg.TRAIN.FG_FRACTION * rois_per_image)
+        fg_rois_per_image = int(np.round(cfg.TRAIN.FG_FRACTION * rois_per_image))
 
         # Sample rois with classification labels and bounding box regression
         # targets
@@ -116,7 +117,7 @@ def _get_bbox_regression_labels(bbox_target_data, num_classes):
         bbox_inside_weights (ndarray): N x 4K blob of loss weights
     """
 
-    clss = bbox_target_data[:, 0]
+    clss = bbox_target_data[:, 0].astype(int)
     bbox_targets = np.zeros((clss.size, 4 * num_classes), dtype=np.float32)
     bbox_inside_weights = np.zeros(bbox_targets.shape, dtype=np.float32)
     inds = np.where(clss > 0)[0]
@@ -139,10 +140,11 @@ def _compute_targets(ex_rois, gt_rois, labels):
     targets = bbox_transform(ex_rois, gt_rois)
     if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
         # Optionally normalize targets by a precomputed mean and stdev
-        targets = ((targets - np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS))
-                / np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS))
+        targets = ((targets - np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS)) /
+                   np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS))
     return np.hstack(
-            (labels[:, np.newaxis], targets)).astype(np.float32, copy=False)
+        (labels[:, np.newaxis], targets)).astype(np.float32, copy=False)
+
 
 def _sample_rois(all_rois, gt_boxes, fg_rois_per_image, rois_per_image, num_classes):
     """Generate a random sample of RoIs comprising foreground and background

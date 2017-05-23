@@ -5,7 +5,6 @@
 # Written by Ross Girshick and Sean Bell
 # --------------------------------------------------------
 
-import os
 import caffe
 import yaml
 from fast_rcnn.config import cfg
@@ -16,6 +15,7 @@ from utils.cython_bbox import bbox_overlaps
 from fast_rcnn.bbox_transform import bbox_transform
 
 DEBUG = False
+
 
 class AnchorTargetLayer(caffe.Layer):
     """
@@ -168,8 +168,8 @@ class AnchorTargetLayer(caffe.Layer):
             disable_inds = npr.choice(
                 bg_inds, size=(len(bg_inds) - num_bg), replace=False)
             labels[disable_inds] = -1
-            #print "was %s inds, disabling %s, now %s inds" % (
-                #len(bg_inds), len(disable_inds), np.sum(labels == 0))
+            # print "was %s inds, disabling %s, now %s inds" % (
+            #     len(bg_inds), len(disable_inds), np.sum(labels == 0))
 
         bbox_targets = np.zeros((len(inds_inside), 4), dtype=np.float32)
         bbox_targets = _compute_targets(anchors, gt_boxes[argmax_overlaps, :])

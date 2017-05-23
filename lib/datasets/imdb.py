@@ -13,13 +13,52 @@ import numpy as np
 import scipy.sparse
 from fast_rcnn.config import cfg
 
+
 class imdb(object):
     """Image database."""
 
-    def __init__(self, name):
+    USE_PASCAL_CLASSES = 'pascal'
+    USE_COCO_CLASSES = 'coco'
+
+    def __init__(self, name, class_set=None):
         self._name = name
-        self._num_classes = 0
         self._classes = []
+        if class_set == imdb.USE_PASCAL_CLASSES:
+            # pascal-style classes
+            self._classes = ('__background__',  # always index 0
+                             'aeroplane', 'bicycle', 'bird', 'boat',
+                             'bottle', 'bus', 'car', 'cat', 'chair',
+                             'cow', 'diningtable', 'dog', 'horse',
+                             'motorbike', 'person', 'pottedplant',
+                             'sheep', 'sofa', 'train', 'tvmonitor')
+        elif class_set == imdb.USE_COCO_CLASSES:
+            # NOTE: manually extracted from coco._classes
+            self._classes = ('__background__', u'person', u'bicycle', u'car', u'motorcycle', u'airplane', u'bus', u'train', u'truck', u'boat', u'traffic light',
+                             u'fire hydrant', u'stop sign', u'parking meter', u'bench', u'bird', u'cat', u'dog', u'horse', u'sheep', u'cow',
+                             u'elephant', u'bear', u'zebra', u'giraffe', u'backpack', u'umbrella', u'handbag', u'tie', u'suitcase', u'frisbee',
+                             u'skis', u'snowboard', u'sports ball', u'kite', u'baseball bat', u'baseball glove', u'skateboard', u'surfboard', u'tennis racket', u'bottle',
+                             u'wine glass', u'cup', u'fork', u'knife', u'spoon', u'bowl', u'banana', u'apple', u'sandwich', u'orange',
+                             u'broccoli', u'carrot', u'hot dog', u'pizza', u'donut', u'cake', u'chair', u'couch', u'potted plant', u'bed',
+                             u'dining table', u'toilet', u'tv', u'laptop', u'mouse', u'remote', u'keyboard', u'cell phone', u'microwave', u'oven',
+                             u'toaster', u'sink', u'refrigerator', u'book', u'clock', u'vase', u'scissors', u'teddy bear', u'hair drier', u'toothbrush')
+
+        # Map classes to indices into the network's output layer
+        self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
+
+        if class_set == imdb.USE_COCO_CLASSES:
+            # Add synonym class texts (e.g. mapping from ImageNet symnet)
+            self._to_coco_class = {
+                'n02958343': 'car',
+                'aeroplane': 'airplane',
+                'diningtable': 'dining table',
+                'motorbike': 'motorcycle',
+                'sofa': 'couch',
+                'pottedplant': 'potted plant',
+                'tvmonitor': 'tv',
+            }
+            for key, value in self._to_coco_class.iteritems():
+                self._class_to_ind[key] = self._class_to_ind[value]
+
         self._image_index = []
         self._obj_proposer = 'selective_search'
         self._roidb = None
@@ -76,7 +115,7 @@ class imdb(object):
 
     @property
     def num_images(self):
-      return len(self.image_index)
+        return len(self.image_index)
 
     def image_path_at(self, i):
         raise NotImplementedError
@@ -96,8 +135,8 @@ class imdb(object):
         raise NotImplementedError
 
     def _get_widths(self):
-      return [PIL.Image.open(self.image_path_at(i)).size[0]
-              for i in xrange(self.num_images)]
+        return [PIL.Image.open(self.image_path_at(i)).size[0]
+                for i in xrange(self.num_images)]
 
     def append_flipped_images(self):
         num_images = self.num_images
@@ -109,10 +148,10 @@ class imdb(object):
             boxes[:, 0] = widths[i] - oldx2 - 1
             boxes[:, 2] = widths[i] - oldx1 - 1
             assert (boxes[:, 2] >= boxes[:, 0]).all()
-            entry = {'boxes' : boxes,
-                     'gt_overlaps' : self.roidb[i]['gt_overlaps'],
-                     'gt_classes' : self.roidb[i]['gt_classes'],
-                     'flipped' : True}
+            entry = {'boxes': boxes,
+                     'gt_overlaps': self.roidb[i]['gt_overlaps'],
+                     'gt_classes': self.roidb[i]['gt_classes'],
+                     'flipped': True}
             self.roidb.append(entry)
         self._image_index = self._image_index * 2
 
@@ -129,18 +168,18 @@ class imdb(object):
         """
         # Record max overlap value for each gt box
         # Return vector of overlap values
-        areas = { 'all': 0, 'small': 1, 'medium': 2, 'large': 3,
-                  '96-128': 4, '128-256': 5, '256-512': 6, '512-inf': 7}
-        area_ranges = [ [0**2, 1e5**2],    # all
-                        [0**2, 32**2],     # small
-                        [32**2, 96**2],    # medium
-                        [96**2, 1e5**2],   # large
-                        [96**2, 128**2],   # 96-128
-                        [128**2, 256**2],  # 128-256
-                        [256**2, 512**2],  # 256-512
-                        [512**2, 1e5**2],  # 512-inf
-                      ]
-        assert areas.has_key(area), 'unknown area range: {}'.format(area)
+        areas = {'all': 0, 'small': 1, 'medium': 2, 'large': 3,
+                 '96-128': 4, '128-256': 5, '256-512': 6, '512-inf': 7}
+        area_ranges = [[0**2, 1e5**2],    # all
+                       [0**2, 32**2],     # small
+                       [32**2, 96**2],    # medium
+                       [96**2, 1e5**2],   # large
+                       [96**2, 128**2],   # 96-128
+                       [128**2, 256**2],  # 128-256
+                       [256**2, 512**2],  # 256-512
+                       [512**2, 1e5**2]]  # 512-inf
+
+        assert area in areas, 'unknown area range: {}'.format(area)
         area_range = area_ranges[areas[area]]
         gt_overlaps = np.zeros(0)
         num_pos = 0
@@ -208,7 +247,7 @@ class imdb(object):
 
     def create_roidb_from_box_list(self, box_list, gt_roidb):
         assert len(box_list) == self.num_images, \
-                'Number of boxes must match number of ground-truth images'
+            'Number of boxes must match number of ground-truth images'
         roidb = []
         for i in xrange(self.num_images):
             boxes = box_list[i]
@@ -227,11 +266,11 @@ class imdb(object):
 
             overlaps = scipy.sparse.csr_matrix(overlaps)
             roidb.append({
-                'boxes' : boxes,
-                'gt_classes' : np.zeros((num_boxes,), dtype=np.int32),
-                'gt_overlaps' : overlaps,
-                'flipped' : False,
-                'seg_areas' : np.zeros((num_boxes,), dtype=np.float32),
+                'boxes': boxes,
+                'gt_classes': np.zeros((num_boxes,), dtype=np.int32),
+                'gt_overlaps': overlaps,
+                'flipped': False,
+                'seg_areas': np.zeros((num_boxes,), dtype=np.float32),
             })
         return roidb
 
